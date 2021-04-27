@@ -5,3 +5,5 @@ C:\Program Files\FlightGear 2020.3.5\data\Input\Event
 C:\Program Files\FlightGear 2020.3.5\data\Nasal\input_helpers
 
 3) Start Flightgear and enjoy!
+In Linux it is probably neccessary to grant access for FlightGear to /dev/hidraw* (chmod a+x /dev/hidraw* is an easy but not strictly save way to do it)
+If it does not work immediately, unplug and replug the panel, and afterwards click in FlightGear "Debug --> reload input".
