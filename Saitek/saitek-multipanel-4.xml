@@ -1,0 +1,448 @@
+<PropertyList>
+
+	<name>Saitek Pro Flight Multi Panel</name>
+	<debug-events type="bool">true</debug-events>
+	<data>
+		<selector-knob type="string">UNDEFINED</selector-knob>
+	</data>  
+	<nasal>
+		<open>
+    <![CDATA[
+##############################################
+# Saitek multi panel
+##############################################
+
+	var basePath = "/input/saitek-multi/"; # caution: this is only used in the nasal code. If you change it, also change it in the xml part
+   	var selectorNode  = props.globals.initNode(basePath ~ "selector-knob", "UNDEFINED", "STRING");
+	input_helpers.input_adapter_init(1);
+	
+	var sel2name = {
+		#         upper disp line      lower display line
+		"ALT":	["ap/target_alt_ft"	, "ap/target_vs_fpm"],
+		"VS":	["ap/target_alt_ft"	, "ap/target_vs_fpm"],
+		"IAS": 	["ap/target_ias"	, ""],
+		"IAS": 	["ap/target_ias"	, ""],
+		"HDG":	["ap/target_hdg"	, ""],
+		"CRS":	["ap/target_nav"	, ""]
+	};
+		
+	var leds = ["ap/led_ap", "ap/led_hdg", "ap/led_nav", "ap/led_ias", "ap/led_alt", "ap/led_vs", "ap/led_apr", "ap/led_rev"]; # the sequence must match the bit positions of the LEDs	
+	foreach (var led; leds) {
+#		var matchedName = matchName("saitek-multi", led);
+		var propPath = input_helpers.watchMatchName(
+								inputDeviceName: "saitek-multi",
+								name: led, 
+								propPath: basePath ~ "leds/" ~ led,
+								type: "BOOL");
+	};
+   
+
+	
+    var getSelectorStatus = func() { selectorNode.getValue() };
+
+    var setSelectorStatus = func(status) {
+		selectorNode.setValue(status);
+		if (! contains(sel2name, status) ) { print ("WARNING: Unkown status of selector knob: " ~ debug.string(status)); return; }
+		var propPath = input_helpers.watchMatchName(
+								 inputDeviceName: "saitek-multi",
+								 name:     	      sel2name[status][0], 
+								 propPath:        basePath ~ "disp/disp[0]", # first line
+								 type:            "STRING",
+								 numDigits:       5,
+								 decimalDotExtra: 1);
+		var propPath = input_helpers.watchMatchName(
+								 inputDeviceName: "saitek-multi",
+								 name:            sel2name[status][1], # second line
+								 propPath:        basePath ~ "disp/disp[1]", 
+								 type:            "STRING",
+								 numDigits:       5,
+								 decimalDotExtra: 1);
+	};
+
+	var updateSaitekMultiPanel = func() {
+		# make the LED Byte
+		var ledByte = 0;
+		currBit = 1;
+		foreach (var led; leds) {
+			var val = getprop(basePath ~ "leds/" ~ led);
+			if ( (val == nil) or (val == input_helpers.nilValue) ) { val = 0; }
+			if (val) { ledByte += currBit; }
+			currBit *= 2;
+		}
+		
+		# make the display bytes
+		# what to display when the selector is set to what
+
+		var getDisplayBytes = func(line) {
+			var val = getprop(basePath ~ "disp/disp", line);
+			if ( (val == input_helpers.nilValue) or (val == nil) ) { val = "     "; }
+#			print("getDisplayBytes----------");
+#			debug.dump(val);
+#			var formatedval = input_helpers.formatValue(val, "%5.0f");
+#			debug.dump(formatedval);
+			var bytes = input_helpers.ascii2saitek(val);
+			return bytes;
+		};
+		var line1bytes = getDisplayBytes(0);
+		var line2bytes = getDisplayBytes(1);
+
+		return line1bytes ~ line2bytes ~ chr(ledByte) ~ chr(255); 
+	};
+
+    var adjustables = [
+        {ID: "ALT", nameUp: "ap/btn_alt-up",           nameDown: "ap/btn_alt-down" },
+        {ID: "VS" , nameUp: "ap/btn_vs_up",            nameDown: "ap/btn_vs_down"  },
+        {ID: "IAS", nameUp: "ap/btn_ias_up",           nameDown: "ap/btn_ias_down" }, 
+		{ID: "HDG", nameUp: "hdg_ind/hdg_bug_btn_up",  nameDown: "hdg_ind/hdg_bug_btn_down" },
+		{ID: "CRS", nameUp: "radio_nav/btn_crs_up",    nameDown: "radio_nav/btn_crs_down"}
+	];
+
+
+	var adjustAp = func(factor) {
+        var status = getSelectorStatus();
+        debug.dump(status);
+        foreach(var disp; adjustables) {
+          	if (disp.ID == status) { # Todo: change adjustables to a hash
+          		curdisp = disp; 
+                	break; 
+        	} 
+        }
+		debug.dump(curdisp);
+		if (factor > 0)	{ input_helpers.buttonPressedMatchName(inputDeviceName: "saitek-multi", buttonName: curdisp["nameUp"],   btnType: "biased", param: 1); } 
+		else            { input_helpers.buttonPressedMatchName(inputDeviceName: "saitek-multi", buttonName: curdisp["nameDown"], btnType: "biased", param: 1); }
+#		gui.popupTip(sprintf(status ~ ": %.0f", getprop(curdisp.prop)  * curdisp.factor));
+	};
+      ]]>
+		</open>
+	</nasal>
+	<hid-descriptor>
+		<report>
+			<type>input</type>
+			<!--   <id>1</id> -->
+			<button-0> <!-- generates button-0 to button-13 -->
+				<size  type="int">1</size>
+				<count type="int">20</count>
+			</button-0>
+			<unused-bits><size type="int">4</size></unused-bits>
+		</report>
+		<report>
+			<type>feature</type>
+			<display-0> <!-- generates display-0 to display-9 -->
+				<size  type="int">8</size>
+				<count type="int">10</count>
+			</display-0>
+			<led-0> <!-- generates led-0 to led-7 for the lightning of the buttons -->
+				<size  type="int">1</size>
+				<count type="int">8</count>
+			</led-0>
+			<selector-0> <!-- generates selector-0 to selector-4 for the status of the knob -->
+				<size  type="int">1</size>
+				<count type="int">5</count>
+			</selector-0>
+			<unused-bits><size type="int">3</size></unused-bits>
+		</report>  
+	</hid-descriptor>
+
+<!-- Auto pilot display selector knob -->
+	<event>
+		<name>button-0</name> <!-- ="256" -->
+		<desc type="string">Auto pilot display and adjust altitude setting</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>setSelectorStatus("ALT");</script>
+		</binding>
+	</event>
+	<event>
+		<name>button-1</name> <!-- ="257" -->
+		<desc type="string">Auto pilot display and adjust vertical speed setting</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>setSelectorStatus("VS")</script>
+		</binding>
+	</event>
+	<event>
+		<name>button-2</name> <!-- ="258" -->
+		<desc type="string">Auto pilot display and adjust indicated air speed setting</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>setSelectorStatus("IAS")</script>
+		</binding>
+	</event>
+	<event>
+		<name>button-3</name> <!-- ="259" -->
+		<desc type="string">Auto pilot display and adjust heading setting</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>setSelectorStatus("HDG")</script>
+		</binding>
+	</event>
+	<event>
+		<name>button-4</name> <!-- ="260" -->
+		<desc type="string">Auto pilot display and adjust CRS setting</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>setSelectorStatus("CRS")</script>
+		</binding>
+	</event>
+	
+
+<!-- adjust knob -->
+	<event>
+		<name>button-5</name> <!-- ="261" -->
+		<desc type="string">Auto pilot adjust the displayed setting</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<!-- Todo: use , "biased" -->
+			<script>adjustAp(1);</script>
+		</binding>
+	</event>
+
+	<event>
+		<name>button-6</name> <!-- ="262" (silver rotating knob) -->
+		<desc type="string">Auto pilot adjust the displayed setting</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>adjustAp(-1);</script>
+		</binding>
+	</event>
+  
+
+<!-- Auto pilot push buttons -->
+	<event>
+		<name>button-7</name> <!-- ="263" -->
+		<desc type="string">Auto pilot</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>input_helpers.buttonPressedMatchName("saitek-multi", "ap/btn_on_off", "biased");</script>
+		</binding>
+		<mod-up>
+			<binding>
+				<command>nasal</command>
+				<script>input_helpers.buttonReleasedMatchName("saitek-multi", "ap/btn_on_off", "biased");</script>
+			</binding>
+		</mod-up> 
+	</event>
+
+	<event>
+		<name>button-8</name> <!-- ="264" -->
+		<desc type="string">Heading</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>input_helpers.buttonPressedMatchName("saitek-multi", "ap/btn_hdg", "biased");</script>
+		</binding>
+		<mod-up>
+			<binding>
+				<command>nasal</command>
+				<script>input_helpers.buttonReleasedMatchName("saitek-multi", "ap/btn_hdg", "biased");</script>
+			</binding>
+		</mod-up> 
+	</event>
+  
+	<event>
+		<name>button-9</name> <!-- ="265" -->
+		<desc type="string">NAV</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>input_helpers.buttonPressedMatchName("saitek-multi", "ap/btn_nav", "biased");</script>
+		</binding>
+		<mod-up>
+			<binding>
+				<command>nasal</command>
+				<script>input_helpers.buttonReleasedMatchName("saitek-multi", "ap/btn_nav", "biased");</script>
+			</binding>
+		</mod-up> 
+	</event>
+
+<!-- as KAP140 does nmot have ias hold, we use this button as alt-arm-button -->
+
+	<event>
+		<name>button-10</name> <!-- ="267" -->
+		<desc type="string">IAS</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>input_helpers.buttonPressedMatchName("saitek-multi", "ap/btn_ias", "biased");</script>
+		</binding>
+		<mod-up>
+			<binding>
+				<command>nasal</command>
+				<script>input_helpers.buttonReleasedMatchName("saitek-multi", "ap/btn_ias", "biased");</script>
+			</binding>
+		</mod-up> 
+	</event>
+
+	<event>
+		<name>button-11</name> <!-- ="268" -->
+		<desc type="string">ALT</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>input_helpers.buttonPressedMatchName("saitek-multi", "ap/btn_alt", "biased");</script>
+		</binding>
+		<mod-up>
+			<binding>
+				<command>nasal</command>
+				<script>input_helpers.buttonReleasedMatchName("saitek-multi", "ap/btn_alt", "biased");</script>
+			</binding>
+		</mod-up> 
+	</event>
+  
+	
+	
+
+<!-- kap140 has no vs, it will be associated in "zz_instruments_devices_standard_deviations.nas" button -->
+	<event>
+		<name>button-12</name> <!-- ="269" -->
+		<desc type="string">VS</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>input_helpers.buttonPressedMatchName("saitek-multi", "ap/btn_vs", "biased");</script>
+		</binding>
+		<mod-up>
+			<binding>
+				<command>nasal</command>
+				<script>input_helpers.buttonReleasedMatchName("saitek-multi", "ap/btn_vs", "biased");</script>
+			</binding>
+		</mod-up> 
+	</event>
+
+	<event>
+		<name>button-13</name> <!-- ="270" -->
+		<desc type="string">APR</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>input_helpers.buttonPressedMatchName("saitek-multi", "ap/btn_apr", "biased");</script>
+		</binding>
+		<mod-up>
+			<binding>
+				<command>nasal</command>
+				<script>input_helpers.buttonReleasedMatchName("saitek-multi", "ap/btn_apr", "biased");</script>
+			</binding>
+		</mod-up> 
+  </event>
+
+	<event>
+		<name>button-14</name> <!-- ="270" -->
+		<desc type="string">REV</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>input_helpers.buttonPressedMatchName("saitek-multi", "ap/btn_rev", "biased");</script>
+		</binding>
+		<mod-up>
+			<binding>
+				<command>nasal</command>
+				<script>input_helpers.buttonReleasedMatchName("saitek-multi", "ap/btn_rev", "biased");</script>
+			</binding>
+		</mod-up>
+  </event>
+  
+  
+<!-- Auto throttle -->
+	<event>
+		<name>button-15</name>
+		<desc type="string">Auto Throttle</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>input_helpers.buttonPressedMatchName("saitek-multi", "ap/btn_throttle", "toggle");</script>
+		</binding>
+		<mod-up>
+			<binding>
+				<command>nasal</command>
+				<script>input_helpers.buttonReleasedMatchName("saitek-multi", "ap/btn_throttle", "toggle");</script>
+			</binding>
+		</mod-up> 
+	</event>
+
+<!-- Flaps -->
+	<event>
+		<name>button-16</name> <!-- ="272" -->
+		<desc type="string">Flaps Up</desc>
+		<repeatable type="string">true</repeatable>
+		<binding>
+			<command type="string">nasal</command>
+			<script type="string">controls.flapsDown(-1);</script>
+		</binding>
+		<mod-up>
+			<binding>
+				<command type="string">nasal</command>
+				<script type="string">controls.flapsDown(0);</script>
+			</binding>
+		</mod-up>
+	</event>
+  
+	<event>
+		<name>button-17</name>
+		<desc type="string">Flaps Down</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command type="string">nasal</command>
+			<script type="string">controls.flapsDown(1);</script>
+		</binding>
+		<mod-up>
+			<binding>
+				<command type="string">nasal</command>
+				<script type="string">controls.flapsDown(0);</script>
+			</binding>
+		</mod-up>
+	</event>
+
+
+<!-- Pitch Trim wheel -->
+	<event>
+		<name>button-18</name> <!-- ="274" -->
+		<desc type="string">Pitch trim down</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>controls.elevatorTrim(0.75);</script>
+<!--
+      <command>property-adjust</command>
+      <property>/controls/flight/elevator-trim</property>
+      <step type="double">-0.03</step>
+-->
+		</binding>
+	</event>
+
+	<event>
+		<name>button-19</name> <!-- ="275" -->
+		<desc type="string">Pitch trim up</desc>
+		<repeatable type="string">false</repeatable>
+		<binding>
+			<command>nasal</command>
+			<script>controls.elevatorTrim(-0.75);</script>
+		</binding>
+	</event>
+
+	<report>
+		<type>feature</type>
+		<watch>/instrumentation/altimeter/setting-inhg</watch>
+		<watch>/input/saitek-multi/leds/ap/led_ap</watch>
+		<watch>/input/saitek-multi/leds/ap/led_hdg</watch>
+		<watch>/input/saitek-multi/leds/ap/led_nav</watch>
+		<watch>/input/saitek-multi/leds/ap/led_ias</watch>
+		<watch>/input/saitek-multi/leds/ap/led_alt</watch>
+		<watch>/input/saitek-multi/leds/ap/led_vs</watch>
+		<watch>/input/saitek-multi/leds/ap/led_apr</watch>
+		<watch>/input/saitek-multi/leds/ap/led_rev</watch>
+		<watch>/input/saitek-multi/disp/disp[0]</watch>
+		<watch>/input/saitek-multi/disp/disp[1]</watch>
+ <!--   <watch>/input/adapter/refresh-headings</watch>  everything that is related to heading -->
+ <!--   <watch>/input/adapter/refresh-alt</watch>  everything that is related to altitude -->
+		<nasal-function>updateSaitekMultiPanel</nasal-function>
+	</report>
+
+</PropertyList>

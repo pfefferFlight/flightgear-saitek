@@ -1,0 +1,7 @@
+1) Place the "Saitek" in the zip file in the directory, so that it is in the same directory as "GoFlight", e.g.
+C:\Program Files\FlightGear 2020.3.5\data\Input\Event
+
+2) Place the file and directory "input_helpers" in the zip file in the already existing directory with the same name where "goflight.nas" already lives in, e.g.
+C:\Program Files\FlightGear 2020.3.5\data\Nasal\input_helpers
+
+3) Start Flightgear and enjoy!

@@ -1,0 +1,526 @@
+<PropertyList>
+
+  <name>Saitek Pro Flight Radio Panel</name>
+  <debug-events type="bool">true</debug-events>
+  <data>
+    <selector-knob type="string">UNDEFINED</selector-knob>
+  </data>  
+  <nasal>
+    <open>
+    <![CDATA[
+
+###############################################
+# Saitek Radio Panel xml
+##############################################
+	### Old Code, but interesting (how to access the <data> field above)
+    #var self = cmdarg().getParent();
+    #print("error 1");
+    #debug.dump(self);
+    #var device = self.getNode("device");
+    #print("error 2");
+    #debug.dump(device);
+    #var data = device.getNode("data");
+    #print("error 2.2");
+    #debug.dump(data);
+    #print("error 2.3");
+    #var selector_knob = data.getNode("selector-knob");
+    #print("error 2.4");
+    #debug.dump(selector_knob); # works, path: "/input/event/device[" ~ num ~ "]/data/selector-knob" num: number of input device
+    #print("error 3");
+    #var getSelectorStatus = func() { selector_knob.getValue() };
+    #print("error 4");
+	#debug.dump(closure(0));
+	#var setSelectorStatus = func(status) { selector_knob.setValue(status) };
+    ##print("error 5");
+	
+	## We want to allow for several Saitek Radio Panels --> find out which numer I am --> save it in variable "myNum"
+	# Note: more than 1 Saitek Radio Panels connected is not tested (but should work, fingers crossed).
+	var myClosureName = caller(0)[2];   # "__event:Saitek Pro Flight Radio Panel_0" the "0" is the number we are looking for. It can also be "__event:Saitek Pro Flight Radio Panel::0" (if <num> is used)
+	print("Loading configuration for >" ~ debug.string(myClosureName) ~ "<");
+	var tmp = split("_", myClosureName);
+	if (find("::", myClosureName) > 0) { tmp = split("::", myClosureName); }
+	var myNum = tmp[-1];
+#    debug.dump(myNum);
+
+	var basePath = "/input/saitek-radio[" ~ myNum ~ "]/"; # caution: this is only used in the nasal code. If you change it, also change it in the xml
+    var saitekUpperSelectorNode = props.globals.initNode(basePath ~ "upper-selector-knob", "UNDEFINED", "STRING");
+    var saitekLowerSelectorNode = props.globals.initNode(basePath ~ "lower-selector-knob", "UNDEFINED", "STRING");
+	input_helpers.input_adapter_init();
+	
+	var sel2name = {
+			"COM1":	{dispLeft: "radio_comm/freq_active", dispRight: "radio_comm/freq_standby",  num: 0, btnAdjust: "radio_comm/freq_standby_btn_adjust", btnSwap: "radio_comm/btn_swap"},
+			"COM2":	{dispLeft: "radio_comm/freq_active", dispRight: "radio_comm/freq_standby",  num: 1, btnAdjust: "radio_comm/freq_standby_btn_adjust", btnSwap: "radio_comm/btn_swap"},
+		    "NAV1": {dispLeft: "radio_nav/freq_active" , dispRight: "radio_nav/freq_standby",   num: 0, btnAdjust: "radio_nav/freq_standby_btn_adjust",  btnSwap: "radio_nav/freq_active"},
+		    "NAV2": {dispLeft: "radio_nav/freq_active" , dispRight: "radio_nav/freq_standby",   num: 1, btnAdjust: "radio_nav/freq_standby_btn_adjust",  btnSwap: "radio_nav/freq_active"},
+		    "ADF":  {dispLeft: "radio_adf/freq_active" , dispRight: "radio_adf/freq_standby",   num: 0, btnAdjust: "radio_adf/freq_standby_btn_adjust",  btnSwap: "radio_adf/btn_swap"},
+			"DME":	{dispLeft: "radio_dme/dist_nm"	   , dispRight: "radio_dme/time_min",       num: 0,                                                  btnSwap: "radio_dme/btn_disp_swap"},
+			"XPDR": {dispLeft: "radio_transponder/code", dispRight: "",                         num: 0, btnAdjust: "radio_transponder/btn_adjust_twoDigitsSeparate", btnSwap: "radio_transponder/btn_ident", btnSwapCtrl: "radio_transponder/btn_adjust_mode", btnSwapAlt: "radio_transponder/btn_adjust_mode"}
+			}; # Todo: XPDR: display right: Mode number
+
+	var selProps = {
+		upper: {prop: basePath ~ "upper-selector-knob"},
+		lower: {prop: basePath ~ "lower-selector-knob"}
+	};
+
+	var setSelectorKnob = func (which, value) {
+		setprop(selProps[which]["prop"], value);		
+		if (! contains(sel2name, value) ) { print ("WARNING: Unkown status of selector knob: " ~ debug.string(value)); return; }
+		# left display
+		var propPath = input_helpers.watchMatchName(
+			inputDeviceName: "saitek-radio", 
+			name:            sel2name[value]["dispLeft"], 
+			propPath:        basePath ~ "disp/disp-" ~ which ~ "-left", 
+			type:            "STRING", 
+			num:             sel2name[value]["num"], 
+			numDigits:       5, # number of digits the saitek radio panel can display
+			decimalDotExtra: 1); # 1 = true = decimal dot does not count for the number of digits
+#		debug.dump(propPath);
+		# right display
+		var propPath = input_helpers.watchMatchName(
+			inputDeviceName: "saitek-radio", 
+			name:            sel2name[value]["dispRight"], 
+			propPath:        basePath ~ "disp/disp-" ~ which ~ "-right", 
+			type:            "STRING", 
+			num:             sel2name[value]["num"], 
+			numDigits:       5, 
+			decimalDotExtra: 1);
+#		debug.dump(propPath);
+	};
+	
+
+	var updateSaitekRadioPanel = func() {
+	#	print("num: " ~ debug.string(num) ~ ", myNum: " ~ debug.string(myNum));
+	#	if (num != myNum) { return; } # needed if you have more than 1 Saitek Radio Panel installed.
+		var getLineAscii = func(whichline) {
+			var sel = getprop(selProps[whichline]["prop"]); # todo: use getSelectorknob
+			debug.dump(sel);
+			var left  = "     ";
+			var right = "     ";
+			if (sel != "UNDEFINED") {
+				left  = getprop(basePath ~ "disp/disp-" ~ whichline ~ "-left");
+				right = getprop(basePath ~ "disp/disp-" ~ whichline ~ "-right");
+			}
+		return left ~ right;	
+		};
+
+		# get the ascii for both display lines
+		var line1Ascii = getLineAscii("upper");
+		var line2Ascii = getLineAscii("lower");
+	
+		# put it all together and convert ascii to saitek format	
+		var allascii = line1Ascii ~ line2Ascii;
+		debug.dump(allascii);
+		var ret = input_helpers.ascii2saitek(allascii);
+		return ret;
+	};
+	
+	# action = "press" or "release"
+	var swapFreqButton = func(which, action, modifier = "") {
+		var sel = getprop(basePath ~ which);
+		if (sel == "UNDEFINED") { return; }
+		var btnName = sel2name[sel]["btnSwap"];
+		var param = 1; # param is only used for transponder for knob-mode change
+		if (modifier == "ctrl") { btnName = sel2name[sel]["btnSwapCtrl"]; param = -1}
+		if (modifier == "alt")  { btnName = sel2name[sel]["btnSwapAlt"];  param = 1}
+		var num = sel2name[sel]["num"];
+		input_helpers.buttonPressedMatchName_("saitek-radio", btnName, "biased", action, num, param);
+	};
+
+	var adjustButtonTurn = func(which, factor, small) {
+		var sel = getprop(selProps[which]["prop"]);
+		if (sel == "UNDEFINED") { return; }
+		if (sel == "DME")     { return; } # if DME is selected, nothing can be adjusted
+		var params = factor;
+		var adjustAmount = "";
+		if (sel == "XPDR") {
+			if (!small) { factor = factor * 64; };
+		} else {
+			adjustAmount = "_large";
+			if (small) {adjustAmount = "_small"; }
+		}
+		var btnName = sel2name[sel]["btnAdjust"] ~ adjustAmount;
+		var num = sel2name[sel]["num"];
+	debug.dump(sel);
+	debug.dump(num);
+	debug.dump(btnName);
+		input_helpers.buttonPressedMatchName("saitek-radio", btnName, "biased", num, factor);
+	};
+		print("Saitek Radio Panel initiatialised.");
+
+      ]]>
+      </open>
+  </nasal>
+
+<hid-descriptor>
+  <report>
+    <type>input</type>
+	<!--   <id>1</id> -->
+    <button-0> <!-- generates button-0 to button-23 -->
+	  <size  type="int">1</size>
+	  <count type="int">24</count>
+    </button-0>
+    <unused-bits><size type="int">0</size></unused-bits>
+  </report>
+  <report>
+    <type>feature</type>
+	  <display-0> <!-- generates display-0 to display-19 -->
+	    <size  type="int">8</size>
+	    <count type="int">20</count>
+ 	  </display-0>
+	  <selector-0> <!-- generates selector-0 to selector-13 for the rotating selector knobs -->
+	    <size  type="int">1</size>
+	    <count type="int">14</count>
+	  </selector-0>
+      <unused-bits><size type="int">2</size></unused-bits>
+  </report>  
+</hid-descriptor>
+
+<!-- this never fires because at the moment FlightGear 2019.2 cannot process incomming FeatureReports and maybe the device never sends an feature report -->
+  <event>
+    <name>selector-0</name> <!-- ="256" -->
+    <desc type="string">Upper selector knob COM 1</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("upper", "COM1");</script>
+    </binding>
+  </event>
+
+
+<!-- Upper display selector knob -->
+  <event>
+    <name>button-0</name> <!-- ="256" -->
+    <desc type="string">Upper COM 1</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("upper", "COM1");</script>
+    </binding>
+  </event>
+
+  <event>
+    <name>button-1</name> <!-- ="257" -->
+    <desc type="string">Upper COM 2</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("upper", "COM2");</script>
+    </binding>
+  </event>
+
+  <event>
+    <name>button-2</name> <!-- ="258" -->
+    <desc type="string">Upper NAV 1</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("upper", "NAV1");</script>
+    </binding>
+  </event>
+
+  <event>
+    <name>button-3</name> <!-- ="259" -->
+    <desc type="string">Upper Nav 2</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("upper", "NAV2");</script>
+    </binding>
+  </event>
+  <event>
+    <name>button-4</name> <!-- ="260" -->
+    <desc type="string">Upper ADF</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("upper", "ADF");</script>
+    </binding>
+  </event>
+
+  <event>
+    <name>button-5</name> <!-- ="261" -->
+    <desc type="string">Upper DME</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("upper", "DME");</script>
+    </binding>
+  </event>
+
+  <event>
+    <name>button-6</name> <!-- ="262" (silver rotating knob) -->
+    <desc type="string">Upper XPDR</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("upper", "XPDR");</script>
+    </binding>
+  </event>
+  
+
+
+
+<!-- Lower display selector knob -->
+
+  <event>
+    <name>button-7</name> <!-- ="263" -->
+    <desc type="string">Lower COM 1</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("lower", "COM1");</script>
+    </binding>
+  </event>
+
+  <event>
+    <name>button-8</name> <!-- ="264" -->
+    <desc type="string">Lower COM 2</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("lower", "COM2");</script>
+    </binding>
+  </event>
+  
+  <event>
+    <name>button-9</name> <!-- ="265" -->
+    <desc type="string">Lower NAV 1</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("lower", "NAV1");</script>
+    </binding>
+  </event>
+
+  <event>
+    <name>button-10</name> <!-- ="265" -->
+    <desc type="string">Lower NAV 2</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("lower", "NAV2");</script>
+    </binding>
+  </event>
+
+
+  <event>
+    <name>button-11</name> <!-- ="267" -->
+    <desc type="string">Lower ADF</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("lower", "ADF");</script>
+    </binding>
+  </event>
+
+  <event>
+    <name>button-12</name> <!-- ="267" -->
+    <desc type="string">Lower DME</desc>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("lower", "DME");</script>
+    </binding>
+  </event>
+
+  
+  <event>
+    <name>button-13</name> <!-- ="269" -->
+    <desc type="string">Lower XPDR</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>setSelectorKnob("lower", "XPDR");</script>
+    </binding>
+  </event>
+
+<!-- Active/Standby buttons-->
+  <event>
+    <name>button-14</name> <!-- ="270" -->
+    <desc type="string">Upper active/standby button</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+        <command>nasal</command>
+        <script>swapFreqButton("upper-selector-knob", "press")</script>
+    </binding>
+    <mod-up>
+    	<binding>
+        	<command>nasal</command>
+        	<script>swapFreqButton("upper-selector-knob", "release")</script>
+		</binding>
+    </mod-up>
+	<mod-ctrl>
+		<binding>
+			<command>nasal</command>
+			<script>swapFreqButton("upper-selector-knob", "press", "ctrl")</script>
+		</binding>
+	</mod-ctrl>
+	<mod-alt>
+		<binding>
+			<command>nasal</command>
+			<script>swapFreqButton("upper-selector-knob", "press", "alt")</script>
+		</binding>
+	</mod-alt>
+  </event>
+
+
+  <event>
+    <name>button-15</name>
+    <desc type="string">Lower active/standby button</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+        <command>nasal</command>
+        <script>swapFreqButton("lower-selector-knob", "press")</script> 
+    </binding>
+    <mod-up>
+      <binding>
+        	<command>nasal</command>
+        	<script>swapFreqButton("lower-selector-knob", "release")</script>
+      </binding>
+	</mod-up>
+	<mod-ctrl>
+		<binding>
+			<command>nasal</command>
+			<script>swapFreqButton("lower-selector-knob", "press", "ctrl")</script>
+		</binding>
+	</mod-ctrl>
+	<mod-alt>
+		<binding>
+			<command>nasal</command>
+			<script>swapFreqButton("lower-selector-knob", "press", "alt")</script>
+		</binding>
+	</mod-alt>
+
+  </event>
+
+<!-- Rotating adjust knobs -->
+  <event>
+    <name>button-16</name> <!-- ="272" -->
+    <desc type="string">Upper inner rotating adjust knob plus</desc>
+    <repeatable type="string">true</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>adjustButtonTurn("upper", 1, 1)</script>
+    </binding>
+  </event>
+  
+  <event>
+    <name>button-17</name>
+    <desc type="string">Upper inner rotating adjust knob minus</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>adjustButtonTurn("upper", -1, 1)</script>
+    </binding>
+  </event>
+
+  
+  <event>
+    <name>button-18</name> <!-- ="274" -->
+    <desc type="string">Upper outer rotating adjust knob plus</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>adjustButtonTurn("upper", 1, 0)</script>
+    </binding>
+  </event>
+
+  <event>
+    <name>button-19</name> <!-- ="275" -->
+    <desc type="string">Upper outer rotating adjust knob minus</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>adjustButtonTurn("upper", -1, 0)</script>
+    </binding>
+  </event>
+  
+  <event>
+    <name>button-20</name> <!-- ="275" -->
+    <desc type="string">Lower inner rotating adjust knob plus</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>adjustButtonTurn("lower", 1, 1)</script>
+    </binding>
+  </event>
+
+  <event>
+    <name>button-21</name> <!-- ="275" -->
+    <desc type="string">Lower inner rotating adjust knob minus</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>adjustButtonTurn("lower", -1, 1)</script>
+    </binding>
+  </event>
+
+  <event>
+    <name>button-22</name> <!-- ="275" -->
+    <desc type="string">Lower outer rotating adjust knob plus</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>adjustButtonTurn("lower", 1, 0)</script>
+    </binding>
+  </event>
+
+  <event>
+    <name>button-23</name> <!-- ="275" -->
+    <desc type="string">Lower outer rotating adjust knob minus</desc>
+    <repeatable type="string">false</repeatable>
+    <binding>
+      <command>nasal</command>
+      <script>adjustButtonTurn("lower", -1, 0)</script>
+    </binding>
+  </event>
+
+  
+<report>
+  <type>feature</type>
+  <watch>/input/saitek-radio/upper-selector-knob</watch>
+  <watch>/input/saitek-radio/lower-selector-knob</watch>
+  <watch>/input/saitek-radio/disp/disp-upper-left</watch>
+  <watch>/input/saitek-radio/disp/disp-upper-right</watch>
+  <watch>/input/saitek-radio/disp/disp-lower-left</watch>
+  <watch>/input/saitek-radio/disp/disp-lower-right</watch>
+  <nasal-function>updateSaitekRadioPanel</nasal-function>
+</report>
+
+<!-- In the case, you have up to 4 Saitek Radio Panels connected,
+     watch for everyone (if you have even more, just copy, paste 
+	 and edit the following section accordingly
+<report>
+  <type>feature</type>
+  <watch>/input/saitek-radio[1]/upper-selector-knob</watch>
+  <watch>/input/saitek-radio[1]/lower-selector-knob</watch>
+  <watch>/input/saitek-radio[1]/disp/disp-upper-left</watch>
+  <watch>/input/saitek-radio[1]/disp/disp-upper-right</watch>
+  <watch>/input/saitek-radio[1]/disp/disp-lower-left</watch>
+  <watch>/input/saitek-radio[1]/disp/disp-lower-right</watch>
+  <nasal-function>updateSaitekRadioPanel(1)</nasal-function>
+</report>
+
+<report>
+  <type>feature</type>
+  <watch>/input/saitek-radio[2]/upper-selector-knob</watch>
+  <watch>/input/saitek-radio[2]/lower-selector-knob</watch>
+  <watch>/input/saitek-radio[2]/disp/disp-upper-left</watch>
+  <watch>/input/saitek-radio[2]/disp/disp-upper-right</watch>
+  <watch>/input/saitek-radio[2]/disp/disp-lower-left</watch>
+  <watch>/input/saitek-radio[2]/disp/disp-lower-right</watch>
+  <nasal-function>updateSaitekRadioPanel(2)</nasal-function>
+</report>
+
+<report>
+  <type>feature</type>
+  <watch>/input/saitek-radio[3]/upper-selector-knob</watch>
+  <watch>/input/saitek-radio[3]/lower-selector-knob</watch>
+  <watch>/input/saitek-radio[3]/disp/disp-upper-left</watch>
+  <watch>/input/saitek-radio[3]/disp/disp-upper-right</watch>
+  <watch>/input/saitek-radio[3]/disp/disp-lower-left</watch>
+  <watch>/input/saitek-radio[3]/disp/disp-lower-right</watch>
+  <nasal-function>updateSaitekRadioPanel(3)</nasal-function>
+</report>
+-->
+
+</PropertyList>
