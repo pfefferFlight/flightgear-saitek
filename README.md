@@ -6,7 +6,8 @@ radio panel and the Multi panel is supported.
 ## Status
 Currently this is not part of FlightGear - it hopefully will be soon.
 
-It already works very well in Linux and sometimes also in Windows. Help is appriciated 
+It already works very well in Linux and in Windows. In Windows, the number 
+displays sometime work, sometime do not work. Help is appriciated 
 in order to find out what/when it works in Windows.
 
 ## How to install?
