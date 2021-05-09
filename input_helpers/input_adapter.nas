@@ -189,6 +189,7 @@ var matchName = func(inputdevice, name) {
 # prop: if vector: the member to get
 var getInstrumentPropForName = func(name, prop, inputDeviceName) {
 	# if name start with "$", the definitions in zz_interumentes_devices_standard_deviations.nas should be called instead of the instrument's
+	if ((name == "") or (name==nil)) return [""];
 	var use_deviations = (name[0]=="$"[0]);
 	# in order to find the correct instrument, the "$" must be eliminated
 	var name_ = ( (use_deviations) ? substr(name, 1) : (name) );
@@ -258,7 +259,7 @@ debug.dump(propPath);
 	if ( (name == nil) or (name == "") ) {
 		print("input_adapter: watchName: Info: called with nil or empty name to watch for. --> Watching for nothing.");
 		props.globals.initNode(propStr, nilValue, type);
-		setprop(propStr, getFormatedValueForName(name: name, num: num, value: nilValue, numDigits: numDigits, decimalDotExtra: decimalDotExtra));
+		setprop(propStr, getFormatedValueForName(name: name, num: num, value: nilValue, numDigits: numDigits, decimalDotExtra: decimalDotExtra, inputDeviceName: inputDeviceName));
 		return name; 
 	}
 	var props_ = getInstrumentPropForName(name, [], inputDeviceName);
@@ -328,7 +329,7 @@ print("watcher called");
 #	print("new value: ");
 #	debug.dump(value);
 	if (value == nil)	{ value = nilValue;}
-	setprop(propStr, value);
+	if (value != getprop(propStr)) {setprop(propStr, value) };  # avoid IO-Operation (update of the created and by the according input-xml watched property only if there was a change in order to avoid unnecessary IO-Operations
 	var instrumentWatcher = getInstrumentPropForName(name, "watcher", inputDeviceName);
 	if (instrumentWatcher != nil) {
 		print("Calling watcher of the instrument."); 

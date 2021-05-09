@@ -112,7 +112,7 @@ var propertyToggle = func(propPath) {
 	var navFreqAdjust = func(old, amount, small) {
 		if ((old == nil) or (old == nilValue) ) { old = 108; }
 		if (small) {
-			var factor = 0.025;
+			var factor = 0.05; # 50 kHZ is the spacing according to the KX 165A handbook (p. 33)
 			amount = amount * factor;
 			# avoid overflow into MHz # + 0.0001 is a work-around for problems of 0.1 being
 			# a periodic number in binary

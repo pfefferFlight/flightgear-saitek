@@ -21,7 +21,6 @@
 		"ALT":	["ap/target_alt_ft"	, "ap/target_vs_fpm"],
 		"VS":	["ap/target_alt_ft"	, "ap/target_vs_fpm"],
 		"IAS": 	["ap/target_ias"	, ""],
-		"IAS": 	["ap/target_ias"	, ""],
 		"HDG":	["ap/target_hdg"	, ""],
 		"CRS":	["ap/target_nav"	, ""]
 	};
@@ -86,7 +85,7 @@
 		var line1bytes = getDisplayBytes(0);
 		var line2bytes = getDisplayBytes(1);
 
-		return line1bytes ~ line2bytes ~ chr(ledByte) ~ chr(255); 
+		return line1bytes ~ line2bytes ~ chr(ledByte) ~ chr(255) ~ chr(255) ~ chr(255); # adding two bytes makes it work better (making the display work in Windows 10 if enhanced power management is switched of in the windows registry)
 	};
 
     var adjustables = [

@@ -97,10 +97,12 @@
 			var left  = "     ";
 			var right = "     ";
 			if (sel != "UNDEFINED") {
-				left  = getprop(basePath ~ "disp/disp-" ~ whichline ~ "-left");
-				right = getprop(basePath ~ "disp/disp-" ~ whichline ~ "-right");
+				var tmp = getprop(basePath ~ "disp/disp-" ~ whichline ~ "-left");
+				if ((tmp != nil) and (input_helpers.nilValue)) left = tmp;
+				tmp = getprop(basePath ~ "disp/disp-" ~ whichline ~ "-right");
+				if ((tmp != nil) and (input_helpers.nilValue)) right = tmp;
 			}
-		return left ~ right;	
+		return left ~ right;
 		};
 
 		# get the ascii for both display lines
@@ -108,7 +110,7 @@
 		var line2Ascii = getLineAscii("lower");
 	
 		# put it all together and convert ascii to saitek format	
-		var allascii = line1Ascii ~ line2Ascii;
+		var allascii = line1Ascii ~ line2Ascii ~ "  "; # adding two bytes make the number display work in Windows 10 when ever it work in MSFS2020 and X-Plane
 		debug.dump(allascii);
 		var ret = input_helpers.ascii2saitek(allascii);
 		return ret;

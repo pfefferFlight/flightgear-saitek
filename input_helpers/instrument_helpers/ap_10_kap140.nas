@@ -70,13 +70,13 @@ var instr_ap_kap140 = {
 			},
 			"ap/target_vs_fpm": {
 				propGetter: func() {
-					return [ "/autopilot/KAP140/settings/target-pressure-rate-fpm-fmt", # without "-fmt" changes very fast in ALT mode
+					return [ "/autopilot/KAP140/settings/target-pressure-rate-fpm", # without "-fmt" changes very fast in ALT mode
 					"/autopilot/KAP140/annunciators/vs-number"]
 				},
 				getValue: func() {
 				# kap140 has only 1 line to display a number - so it displays either the armed alt or target-vs.
 					if (getprop("/autopilot/KAP140/annunciators/vs-number") ) { # convert pressure rate to fpm = pressure_rate*-58000 see Aircraft/c172p/Systems/KAP140.xml
-						var ret = getprop("/autopilot/KAP140/settings/target-pressure-rate-fpm-fmt");
+						var ret = getprop("/autopilot/KAP140/settings/target-pressure-rate-fpm");
 							# only without -fmt relevant: if ( (ret >= -1) and (ret < 1) ) { return nil; } # see Aircraft/c172p/Models/Interior/Panel/Instruments/kap140/KAP140TwoAxisAlt.xml
 						return ret;
 					} else {
